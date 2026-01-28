@@ -70,8 +70,8 @@ claude mcp add --transport http shadcn https://www.shadcn.io/api/mcp
 
 ```bash
 git clone https://github.com/Dong237/learning-on-web-skill.git
+mkdir -p your-project/.claude/skills
 cp -r learning-on-web-skill/.claude/skills/learning-on-web your-project/.claude/skills/
-cp -r learning-on-web-skill/src/learning-on-web/skills/* your-project/.claude/skills/learning-on-web/skills/
 ```
 
 ## Usage
