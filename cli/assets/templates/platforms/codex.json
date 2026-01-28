@@ -1,0 +1,17 @@
+{
+  "platform": "codex",
+  "displayName": "Codex",
+  "installType": "full",
+  "folderStructure": {
+    "root": ".codex",
+    "skillPath": "skills/learning-on-web",
+    "filename": "SKILL.md"
+  },
+  "skillsPath": "skills/learning-on-web/skills",
+  "frontmatter": {
+    "name": "learning-on-web",
+    "description": "Transform any course content into an interactive learning website. 4-phase pipeline: Analyze → Notes → Web → Audit. Human-in-the-loop at every step. Requires shadcn/ui MCP and Magic UI MCP for web building. Trigger: build learning site, transform course, create learning platform, course to website, make interactive learning, convert course content."
+  },
+  "title": "Learning on Web",
+  "skillOrWorkflow": "Skill"
+}
