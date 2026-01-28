@@ -1,0 +1,14 @@
+{
+  "platform": "windsurf",
+  "displayName": "Windsurf",
+  "installType": "reference",
+  "folderStructure": {
+    "root": ".windsurf",
+    "skillPath": "workflows",
+    "filename": "learning-on-web.md"
+  },
+  "skillsPath": ".shared/learning-on-web/skills",
+  "frontmatter": null,
+  "title": "Learning on Web",
+  "skillOrWorkflow": "Workflow"
+}

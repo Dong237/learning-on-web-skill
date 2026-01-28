@@ -1,0 +1,36 @@
+{
+  "name": "learning-on-web-skill",
+  "id": "learning-on-web-skill",
+  "owner": {
+    "name": "Dong237"
+  },
+  "metadata": {
+    "description": "Transform any course content into an interactive learning website. 4-phase AI-assisted pipeline: Analyze → Notes → Web → Audit. Human-in-the-loop at every step.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "learning-on-web",
+      "source": "./",
+      "description": "Transform any course content into an interactive learning website through a 4-phase AI-assisted pipeline with human-in-the-loop at every step. Requires shadcn/ui MCP and Magic UI MCP for web building.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Dong237"
+      },
+      "keywords": [
+        "learning",
+        "education",
+        "interactive",
+        "course",
+        "website",
+        "edtech",
+        "notes",
+        "web-building",
+        "next.js",
+        "nextra"
+      ],
+      "category": "education",
+      "strict": false
+    }
+  ]
+}

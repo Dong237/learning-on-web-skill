@@ -1,0 +1,14 @@
+{
+  "platform": "qoder",
+  "displayName": "Qoder",
+  "installType": "reference",
+  "folderStructure": {
+    "root": ".qoder",
+    "skillPath": "commands",
+    "filename": "learning-on-web.md"
+  },
+  "skillsPath": ".shared/learning-on-web/skills",
+  "frontmatter": null,
+  "title": "Learning on Web",
+  "skillOrWorkflow": "Workflow"
+}

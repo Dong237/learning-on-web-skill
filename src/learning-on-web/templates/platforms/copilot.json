@@ -1,0 +1,14 @@
+{
+  "platform": "copilot",
+  "displayName": "Copilot",
+  "installType": "reference",
+  "folderStructure": {
+    "root": ".github",
+    "skillPath": "copilot-instructions",
+    "filename": "learning-on-web.md"
+  },
+  "skillsPath": ".shared/learning-on-web/skills",
+  "frontmatter": null,
+  "title": "Learning on Web",
+  "skillOrWorkflow": "Workflow"
+}

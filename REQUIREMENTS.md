@@ -1,7 +1,6 @@
 # Requirements: "Learning on Web" Skill
 
-> A PRD-style requirements document for Claude Code to build the learning-on-web skill.
-> Hand this file to Claude Code in the `learning-on-web-skill` repo as the starting brief.
+> A PRD-style requirements document for AI to build the learning-on-web skill.
 
 ---
 
@@ -56,7 +55,7 @@ description: "When to activate. What it does. Key trigger words."
 ---
 ```
 
-**This is a prompt-driven skill** — no Python scripts, no CSV databases. Pure SKILL.md instructions that leverage Claude Code's native capabilities. Keep it simple. Scripts can be added later as the skill matures.
+**This is a prompt-driven skill** — no Python scripts, no CSV databases. Pure SKILL.md instructions that leverage AI's native capabilities. Keep it simple. Scripts can be added later as the skill matures.
 
 ---
 
@@ -67,7 +66,7 @@ Scan any course folder, discover its structure through interactive dialogue with
 
 ### Human-in-the-Loop Requirements
 
-This skill MUST be deeply interactive. Claude Code should:
+This skill MUST be deeply interactive. AI should:
 
 1. **Ask about the source materials:**
    - Where are they? (path)
@@ -202,7 +201,7 @@ Every note MUST read as if written by a professional human author for commercial
 
 ### Audience Orientation
 
-Before writing each note, Claude Code MUST re-read `course-spec.json` and orient the content based on:
+Before writing each note, AI MUST re-read `course-spec.json` and orient the content based on:
 
 - **Audience level** → Controls depth of explanation (beginner: explain everything; advanced: focus on nuance and edge cases)
 - **Perspective** → Controls the voice (e.g., "LLM engineer" means drawing parallels to ML systems, using engineering analogies)
@@ -212,7 +211,7 @@ Before writing each note, Claude Code MUST re-read `course-spec.json` and orient
 
 ### Human-in-the-Loop Requirements
 
-Before generating EACH note (or batch), Claude Code should:
+Before generating EACH note (or batch), AI should:
 
 1. **Catalog-level questions (once per course):**
    - Review the module structure — does this grouping make sense for learning?
@@ -312,13 +311,14 @@ Transform markdown notes into an interactive learning website, using **intellige
 
 ### The Core Intelligence: Adaptive Presentation
 
-This is what makes this skill special. For EVERY piece of content, Claude Code should reason:
+This is what makes this skill special. For EVERY piece of content, AI should reason:
 
 ```
 Given this concept/content:
   - What is the nature of this knowledge? (fact, process, comparison, hierarchy, timeline, decision tree, etc.)
   - What presentation format would maximize understanding and retention?
   - What interactive element would make this engaging?
+  - If I am a learner myself, how would I best visualize this concept so I could learn with best motivation and effficiency?
 
 Then choose the best format:
   - A comparison → SideBySide component or comparison table
@@ -335,6 +335,7 @@ Then choose the best format:
   - Data/statistics → Chart or infographic
   - Before/after → Toggle comparison
   - Best practices → Checklist component
+  - And so on, for all other content types...
 ```
 
 **This reasoning should happen on the fly for every section of every note.** The AI should not apply a fixed template — it should think about what works best for THIS specific content.
@@ -373,7 +374,7 @@ Then choose the best format:
 
 ### Leveraging Other Skills
 
-The SKILL.md should instruct Claude Code to:
+The SKILL.md should instruct AI to:
 
 1. **Search for and use installed skills** — especially:
    - UI/UX design skills (for design system generation)
@@ -394,8 +395,8 @@ The SKILL.md should instruct Claude Code to:
 
 **`scaffold`** — Initialize the web project:
 1. Read `.learning/course-spec.json`
-2. Create Next.js + Nextra project (or detect existing)
-3. Generate design system (use ui-ux-pro-max if available)
+2. Create project tech stack (or detect existing), ask users with explanation on each tech stach feature, let user decide which ones to use
+3. Generate design system (use ui-ux-pro-max or any other skills related to UI/UX design if available)
 4. Build component library for learning content
 5. Set up routing structure matching course hierarchy
 6. Set up progress tracking (localStorage)
@@ -443,7 +444,7 @@ After a chunk of the website is built, audit the learning experience against exp
 
 ### When to Run
 
-This skill runs **after Skill 3 produces output** — but the granularity is flexible. Claude Code should ask the user:
+This skill runs **after Skill 3 produces output** — but the granularity is flexible. AI should ask the user:
 
 - "At what granularity should I run audits?"
   - **Per part** — Audit after each lesson page is built (most thorough, slowest)
@@ -465,6 +466,7 @@ The evaluation covers these areas:
 - Are there sections that would benefit from a DIFFERENT interactive format?
 - Are there missed opportunities for interactivity? (e.g., a comparison presented as plain text that should be a SideBySide)
 - Is any content over-engineered? (interactive for the sake of interactive, when plain text would be clearer)
+- **IMPORTANT:** how does the current page looks as a whole? (Is it a complete learning unit with unified theme and style, or does any components look out of place in terms of layout and styling etc?)
 
 #### 3. User Experience
 - Is the page load reasonable?
@@ -490,7 +492,7 @@ The evaluation covers these areas:
 ### Audit Process
 
 1. **Open each page** (using Playwright if available, or by reviewing code)
-2. **Take screenshots** at key breakpoints (desktop, tablet, mobile)
+2. **Take screenshots** at key breakpoints (desktop, tablet, mobile). Here if too much work, then ask user for opinion of the granularity of the audit.
 3. **Compare against expectations** from course-spec.json
 4. **Generate an audit report** with:
    - Issues found (categorized by severity: critical, major, minor)
@@ -604,7 +606,7 @@ Each step should complete fully before moving to the next. The user can also inv
 ```
 User: I have a data science course in ./materials/. Transform it into a learning website for Chinese junior developers.
 
-Claude Code (course-analyze):
+AI (course-analyze):
   "I found 4 modules with 18 parts. Here's the structure:
    - Module 1: Python Basics (5 parts)
    - Module 2: Data Analysis with Pandas (4 parts)
@@ -623,9 +625,9 @@ Claude Code (course-analyze):
 
 User: "Senior engineer perspective, assume basic Python, emphasize scikit-learn and PyTorch, conversational blog tone, yes commercial quality"
 
-Claude Code: "Saved to .learning/course-spec.json. Ready for note generation."
+AI: "Saved to .learning/course-spec.json. Ready for note generation."
 
-Claude Code (course-to-notes, Module 1 Part 1):
+AI (course-to-notes, Module 1 Part 1):
   "I've read the source for 'Introduction to Data Science'.
    Key concepts:
    - What is data science (definition, scope)
@@ -639,9 +641,9 @@ Claude Code (course-to-notes, Module 1 Part 1):
 
 User: "Yes Chinese companies, yes MLOps preview, lean practical"
 
-Claude Code: [generates note, presents for review — written in conversational senior engineer voice, no AI artifacts]
+AI: [generates note, presents for review — written in conversational senior engineer voice, no AI artifacts]
 
-Claude Code (notes-to-web, converting Module 1 Part 1):
+AI (notes-to-web, converting Module 1 Part 1):
   "For this lesson on 'Introduction to Data Science', I propose:
    - TL;DR → TLDRCard (5 key points)
    - Role comparison → SideBySide with 3 columns (DS vs DE vs MLE)
@@ -655,7 +657,7 @@ Claude Code (notes-to-web, converting Module 1 Part 1):
 
 User: "Perfect, proceed"
 
-Claude Code (learning-audit, after Module 1 complete):
+AI (learning-audit, after Module 1 complete):
   "Audit of Module 1 (5 pages):
 
    Critical:
@@ -672,7 +674,7 @@ Claude Code (learning-audit, after Module 1 complete):
 
 User: "Fix all, show me the opportunity"
 
-Claude Code: [fixes issues, presents TimeAllocation mockup, continues to Module 2]
+AI: [fixes issues, presents TimeAllocation mockup, continues to Module 2]
 ```
 
 ---

@@ -1,0 +1,14 @@
+{
+  "platform": "cursor",
+  "displayName": "Cursor",
+  "installType": "reference",
+  "folderStructure": {
+    "root": ".cursor",
+    "skillPath": "commands",
+    "filename": "learning-on-web.md"
+  },
+  "skillsPath": ".shared/learning-on-web/skills",
+  "frontmatter": null,
+  "title": "Learning on Web",
+  "skillOrWorkflow": "Workflow"
+}

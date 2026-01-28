@@ -1,0 +1,14 @@
+{
+  "platform": "kiro",
+  "displayName": "Kiro",
+  "installType": "reference",
+  "folderStructure": {
+    "root": ".kiro",
+    "skillPath": "workflows",
+    "filename": "learning-on-web.md"
+  },
+  "skillsPath": ".shared/learning-on-web/skills",
+  "frontmatter": null,
+  "title": "Learning on Web",
+  "skillOrWorkflow": "Workflow"
+}

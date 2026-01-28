@@ -1,0 +1,14 @@
+{
+  "platform": "roocode",
+  "displayName": "Roo Code",
+  "installType": "reference",
+  "folderStructure": {
+    "root": ".roo",
+    "skillPath": "workflows",
+    "filename": "learning-on-web.md"
+  },
+  "skillsPath": ".shared/learning-on-web/skills",
+  "frontmatter": null,
+  "title": "Learning on Web",
+  "skillOrWorkflow": "Workflow"
+}
