@@ -241,6 +241,233 @@ Detailed content...
 
 ---
 
+## Automated Pre-Save Quality Validation
+
+**CRITICAL: Before writing any note file, run these automated checks. If ANY check fails, DO NOT save the file. Regenerate with fixes.**
+
+```bash
+# Function to validate a generated note
+validate_note() {
+  local NOTE_FILE="$1"
+  local CONTENT=$(cat "$NOTE_FILE")
+  local ERRORS=0
+
+  echo "🔍 Validating note quality: $(basename $NOTE_FILE)"
+  echo ""
+
+  # Check 1: TL;DR Section Exists
+  if ! echo "$CONTENT" | grep -q "^## TL;DR"; then
+    echo "❌ FAIL: No TL;DR section found"
+    ((ERRORS++))
+  else
+    TLDR_BULLETS=$(echo "$CONTENT" | sed -n '/^## TL;DR/,/^##/p' | grep -c "^- ")
+    if [ "$TLDR_BULLETS" -lt 3 ] || [ "$TLDR_BULLETS" -gt 5 ]; then
+      echo "❌ FAIL: TL;DR has $TLDR_BULLETS bullets (need 3-5)"
+      ((ERRORS++))
+    else
+      echo "✅ PASS: TL;DR section with $TLDR_BULLETS bullets"
+    fi
+  fi
+
+  # Check 2: Mind Map Exists
+  if ! echo "$CONTENT" | grep -q "^## Mind Map"; then
+    echo "❌ FAIL: No Mind Map section found"
+    ((ERRORS++))
+  else
+    if ! echo "$CONTENT" | sed -n '/^## Mind Map/,/^##/p' | grep -q '```mermaid'; then
+      echo "❌ FAIL: Mind Map section exists but no mermaid diagram"
+      ((ERRORS++))
+    else
+      echo "✅ PASS: Mind Map with mermaid diagram"
+    fi
+  fi
+
+  # Check 3: At Least 2 Mermaid Diagrams Total
+  MERMAID_COUNT=$(echo "$CONTENT" | grep -c '```mermaid')
+  if [ "$MERMAID_COUNT" -lt 2 ]; then
+    echo "❌ FAIL: Only $MERMAID_COUNT mermaid diagrams (need at least 2)"
+    ((ERRORS++))
+  else
+    echo "✅ PASS: $MERMAID_COUNT mermaid diagrams"
+  fi
+
+  # Check 4: Terminology Table
+  if ! echo "$CONTENT" | grep -q "^## Terminology"; then
+    echo "❌ FAIL: No Terminology section found"
+    ((ERRORS++))
+  else
+    # Count table rows (exclude header and separator)
+    TERM_COUNT=$(echo "$CONTENT" | sed -n '/^## Terminology/,/^##/p' | grep "^|" | grep -v "^| Term " | grep -v "^|---" | wc -l)
+    if [ "$TERM_COUNT" -lt 5 ]; then
+      echo "❌ FAIL: Only $TERM_COUNT terms in table (need at least 5)"
+      ((ERRORS++))
+    else
+      echo "✅ PASS: $TERM_COUNT terms in terminology table"
+    fi
+  fi
+
+  # Check 5: Self-Test Questions
+  if ! echo "$CONTENT" | grep -q "^## Self-Test"; then
+    echo "❌ FAIL: No Self-Test section found"
+    ((ERRORS++))
+  else
+    QUESTION_COUNT=$(echo "$CONTENT" | sed -n '/^## Self-Test/,/^##/p' | grep -c "^[0-9]\.")
+    if [ "$QUESTION_COUNT" -lt 3 ]; then
+      echo "❌ FAIL: Only $QUESTION_COUNT questions (need at least 3)"
+      ((ERRORS++))
+    else
+      echo "✅ PASS: $QUESTION_COUNT self-test questions"
+    fi
+  fi
+
+  # Check 6: Practice Tasks
+  if ! echo "$CONTENT" | grep -q "^## Practice"; then
+    echo "❌ FAIL: No Practice section found"
+    ((ERRORS++))
+  else
+    TASK_COUNT=$(echo "$CONTENT" | sed -n '/^## Practice/,/^##/p' | grep -c "^- \[ \]")
+    if [ "$TASK_COUNT" -lt 3 ]; then
+      echo "❌ FAIL: Only $TASK_COUNT practice tasks (need at least 3)"
+      ((ERRORS++))
+    else
+      echo "✅ PASS: $TASK_COUNT practice tasks"
+    fi
+  fi
+
+  # Check 7: "Next Up" Section
+  if ! echo "$CONTENT" | grep -qi "^## Next"; then
+    echo "❌ FAIL: No 'Next Up' or 'Next' section found"
+    ((ERRORS++))
+  else
+    echo "✅ PASS: Next section preview found"
+  fi
+
+  # Check 8: Anti-AI-Slop Patterns
+  echo ""
+  echo "🤖 Checking for AI generation artifacts..."
+
+  AI_SLOP_PATTERNS=(
+    "Let's dive in"
+    "It's worth noting"
+    "In this section"
+    "As we can see"
+    "It is important to note"
+    "There are many ways"
+    "In today's world"
+    "In conclusion"
+  )
+
+  for pattern in "${AI_SLOP_PATTERNS[@]}"; do
+    if echo "$CONTENT" | grep -qi "$pattern"; then
+      echo "⚠️  WARNING: Found AI-slop phrase: '$pattern'"
+      ((ERRORS++))
+    fi
+  done
+
+  # Check for decorative emojis in body text (not in callouts)
+  BODY_EMOJI_COUNT=$(echo "$CONTENT" | grep -v "^>" | grep -oE '[\x{1F300}-\x{1F9FF}]' | wc -l)
+  if [ "$BODY_EMOJI_COUNT" -gt 0 ]; then
+    echo "⚠️  WARNING: Found $BODY_EMOJI_COUNT decorative emojis in body text (only use in callouts)"
+    ((ERRORS++))
+  fi
+
+  # Check 9: Tone Verification (if course-spec.json exists)
+  if [ -f .learning/state/course-spec.json ]; then
+    TONE=$(jq -r '.tone // "conversational"' .learning/state/course-spec.json)
+
+    case "$TONE" in
+      "formal")
+        if echo "$CONTENT" | grep -qE "(don't|won't|can't|it's)"; then
+          echo "⚠️  WARNING: Formal tone specified but contractions found"
+        else
+          echo "✅ PASS: No contractions (formal tone)"
+        fi
+        ;;
+      "technical")
+        # Should have precise terminology, not vague phrases
+        if echo "$CONTENT" | grep -qiE "(somehow|basically|simply|just)"; then
+          echo "⚠️  WARNING: Technical tone specified but vague language found"
+        else
+          echo "✅ PASS: Precise technical language"
+        fi
+        ;;
+      "conversational")
+        echo "✅ PASS: Conversational tone (flexible)"
+        ;;
+    esac
+  fi
+
+  # Check 10: Language Consistency
+  if [ -f .learning/state/course-spec.json ]; then
+    CONTENT_LANG=$(jq -r '.contentLanguage // "English"' .learning/state/course-spec.json)
+
+    case "$CONTENT_LANG" in
+      "English")
+        # Should be primarily English
+        if echo "$CONTENT" | grep -qP '[\p{Han}]{10,}'; then
+          echo "⚠️  WARNING: English language specified but found Chinese paragraphs"
+        else
+          echo "✅ PASS: Content in English"
+        fi
+        ;;
+      "中文")
+        # Should be primarily Chinese
+        if ! echo "$CONTENT" | grep -qP '[\p{Han}]{10,}'; then
+          echo "⚠️  WARNING: Chinese language specified but no Chinese paragraphs found"
+        else
+          echo "✅ PASS: Content in Chinese"
+        fi
+        ;;
+      "Bilingual")
+        # Should have both
+        HAS_ENGLISH=$(echo "$CONTENT" | grep -qE '[a-zA-Z]{20,}' && echo "yes" || echo "no")
+        HAS_CHINESE=$(echo "$CONTENT" | grep -qP '[\p{Han}]{10,}' && echo "yes" || echo "no")
+
+        if [ "$HAS_ENGLISH" = "yes" ] && [ "$HAS_CHINESE" = "yes" ]; then
+          echo "✅ PASS: Content includes both English and Chinese"
+        else
+          echo "⚠️  WARNING: Bilingual specified but missing one language"
+        fi
+        ;;
+    esac
+  fi
+
+  echo ""
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+  if [ $ERRORS -eq 0 ]; then
+    echo "✅ VALIDATION PASSED: All quality checks passed!"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    return 0
+  else
+    echo "❌ VALIDATION FAILED: $ERRORS issues found"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "DO NOT SAVE THIS NOTE. Regenerate with fixes and validate again."
+    return 1
+  fi
+}
+
+# Usage: After generating note content, before writing to file
+# validate_note "/tmp/generated-note.md"
+# if [ $? -eq 0 ]; then
+#   mv /tmp/generated-note.md docs/course-id/module-id/part.md
+# else
+#   echo "Regenerating note with quality improvements..."
+# fi
+```
+
+**Validation Workflow:**
+
+1. Generate note content (with all required sections)
+2. Write to temporary file: `/tmp/note-draft-${PART_ID}.md`
+3. Run `validate_note /tmp/note-draft-${PART_ID}.md`
+4. If validation passes: Move to final location `docs/`
+5. If validation fails: Regenerate with specific fixes, validate again
+6. Maximum 2 regeneration attempts before asking user for guidance
+
+---
+
 ## Output
 
 Notes are saved to `docs/` directory:
