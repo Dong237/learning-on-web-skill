@@ -204,6 +204,22 @@ Route to the appropriate sub-skill based on context:
 | "audit", "evaluate", "check quality" | Phase 4 | `skills/learning-audit/SKILL.md` |
 | "transform this course" (full pipeline) | Phase 1 → 2 → 3 → 4 | Sequential |
 
+### ⛔ CRITICAL: How to Route
+
+**"Route to" means READ the sub-skill file and FOLLOW its instructions EXACTLY.**
+
+When entering Phase 3 (notes-to-web):
+1. **READ** `skills/notes-to-web/SKILL.md` FIRST
+2. **FOLLOW** its Component Mapping Protocol — stages 1-4
+3. **DO NOT** skip to building pages without creating mapping files
+4. **VERIFY** `.learning/mappings/` directory exists before writing page code
+
+```
+⛔ FORBIDDEN: Building lesson pages without mapping files
+⛔ FORBIDDEN: Using dangerouslySetInnerHTML to render markdown
+⛔ FORBIDDEN: Rendering markdown as prose without component selection
+```
+
 Each phase completes fully before moving to the next. The user can also invoke individual sub-skills independently.
 
 ---
@@ -401,6 +417,94 @@ Phases 3 and 4 form an iterative quality loop controlled by the orchestrator:
   - `per-course`: Entire site is one chunk (fewest iterations, fastest)
 
 **Critical:** Phase 4 ALWAYS runs, even in Quick Mode. The audit step is non-negotiable for quality.
+
+---
+
+## ⛔ Phase 3 Execution Protocol (MANDATORY)
+
+**When you route to Phase 3, you MUST follow these steps IN ORDER. This is the core value of the entire skill.**
+
+### Step 1: For EACH lesson, Extract Sections First
+
+Before writing ANY page code, analyze the markdown:
+
+```bash
+# Create mappings directory
+mkdir -p .learning/mappings
+```
+
+Read the markdown file, identify all H2/H3 sections, and write `[lesson-id]-sections.json`:
+
+```json
+{
+  "file": "docs/course-1/c1-m1-p1.md",
+  "sections": [
+    {"heading": "TL;DR", "level": 2, "wordCount": 45},
+    {"heading": "PM vs Engineering", "level": 2, "wordCount": 280, "pattern": "comparison"},
+    {"heading": "Key Terms", "level": 2, "termCount": 8, "pattern": "definitions"}
+  ]
+}
+```
+
+### Step 2: Classify Each Section → Select Component
+
+For each section, decide the best component:
+
+| Pattern | Component | Why |
+|---------|-----------|-----|
+| Summary/takeaways | TLDRCard | Scannable with icons |
+| Comparison (2+ items) | **SideBySide** | Color-coded columns for pattern recognition |
+| Process/workflow | **Timeline** | Visual step sequence |
+| Terms/definitions | **FlashcardDeck** | Active recall via flip animation |
+| Quiz/self-test | **QuizEngine** | Gamified feedback |
+| Narrative/context | ProseBlock | Beautiful typography (NOT raw markdown) |
+
+Write `[lesson-id]-mapping.json`:
+
+```json
+{
+  "mappings": [
+    {"section": "TL;DR", "component": "TLDRCard", "rationale": "5 key points need icons"},
+    {"section": "PM vs Engineering", "component": "SideBySide", "rationale": "Two perspectives need color-coded columns"},
+    {"section": "Key Terms", "component": "FlashcardDeck", "rationale": "8 terms need active recall"}
+  ]
+}
+```
+
+### Step 3: Ask User to Approve Mapping
+
+**STOP and show the user:**
+
+```
+📄 Component Mapping for "[Lesson Title]"
+
+📌 TL;DR (45 words) → TLDRCard
+🔀 PM vs Engineering (comparison) → SideBySide
+📚 Key Terms (8 terms) → FlashcardDeck
+
+Approve this mapping? [yes / modify]
+```
+
+**DO NOT proceed without user response.**
+
+### Step 4: Build Using Approved Components
+
+Only AFTER approval, build the page where:
+- Each section renders using its designated component
+- NO raw markdown rendering with `dangerouslySetInnerHTML`
+- NO `<article className="prose">{content}</article>`
+
+### Verification (MUST PASS before moving on)
+
+```bash
+# These files MUST exist:
+ls .learning/mappings/*.json
+
+# Page MUST import multiple component types:
+grep -r "FlashcardDeck\|SideBySide\|QuizEngine\|TLDRCard" learning-site/src/
+```
+
+**If verification fails, you skipped the protocol. Go back to Step 1.**
 
 ---
 
