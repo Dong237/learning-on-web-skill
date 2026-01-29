@@ -15,10 +15,58 @@ Transform raw course content into value-added learning notes in markdown, with h
 - The main orchestrator routes here as Phase 2
 - `.learning/course-spec.json` exists
 
-## Prerequisites
+## INPUT Requirements (State Files from Phase 1)
 
-- `.learning/course-spec.json` MUST exist (from Phase 1)
-- Read it before every note to orient content
+This phase requires `.learning/state/course-spec.json` from Phase 1.
+
+**Verify before proceeding:**
+
+```bash
+if [ ! -f .learning/state/course-spec.json ]; then
+  echo "❌ ERROR: course-spec.json missing"
+  echo "Phase 2 requires the course specification from Phase 1."
+  echo ""
+  echo "Please run Phase 1 (course-analyze) first, or if using Quick Mode,"
+  echo "ensure the orchestrator generated a minimal course-spec.json."
+  exit 1
+fi
+
+echo "✅ course-spec.json found"
+```
+
+**Read before every note** to orient content by audience, perspective, tone, and goals.
+
+---
+
+## Language Handling (CRITICAL)
+
+Before generating any notes, read the language setting from course-spec.json:
+
+```bash
+CONTENT_LANG=$(jq -r '.contentLanguage // "English"' .learning/state/course-spec.json)
+echo "Content language: $CONTENT_LANG"
+```
+
+**Apply language setting to ALL generated content:**
+
+| Language Setting | How to Apply |
+|-----------------|--------------|
+| **English** | Generate all content (TL;DR, headings, terminology, self-test, practice tasks) in English |
+| **中文 (Chinese)** | Generate all content in simplified Chinese. Use Chinese terminology with English in parentheses where helpful. |
+| **Bilingual** | Primary language in Chinese, key terms in both Chinese and English. Example: "产品经理 (Product Manager)" |
+| **Auto-detect** | Match the language of source materials. If mixed, use the dominant language. |
+
+**Important formatting for bilingual content:**
+```markdown
+## 术语表 (Terminology)
+| 中文术语 | English Term | 定义 (Definition) | 示例 (Example) |
+|---------|--------------|------------------|----------------|
+| 产品经理 | Product Manager | 负责产品战略... | ... |
+```
+
+**UI text and structure elements** (headings like "TL;DR", "Self-Test", "Practice Tasks"):
+- If language is Chinese or Bilingual: Use Chinese headings (e.g., "核心要点" instead of "TL;DR")
+- If language is English: Use English headings
 
 ---
 
@@ -254,11 +302,141 @@ If `.learning/tasks/course-to-notes.task.md` exists:
 
 ---
 
-## Phase Transition
+## OUTPUT: Generate Notes Manifest (State File for Phase 3)
 
-When all notes are complete:
-1. Verify all notes pass the quality checklist
-2. Run a quick structural validation: every note has TL;DR, terminology table, self-test
-3. Flag any notes that failed validation
-4. Update PROGRESS.md: `course-to-notes → ✅ completed`
-5. Ask user: "All notes complete. Ready to build the interactive website? (Phase 3: notes-to-web)"
+When all notes are complete and validated, create the state file for Phase 3:
+
+### Step 1: Validate All Notes
+
+Run quality checks on all generated notes:
+
+```bash
+echo "Running quality validation..."
+
+VALIDATION_FAILED=0
+
+for note in docs/**/*.md; do
+  # Check for required sections
+  if ! grep -q "^## TL;DR" "$note" || \
+     ! grep -q "^## .*Terminology" "$note" || \
+     ! grep -q "^## .*Self.*Test" "$note" || \
+     ! grep -q "^## .*Practice" "$note"; then
+    echo "❌ $note: Missing required sections"
+    VALIDATION_FAILED=1
+  fi
+
+  # Check for AI markers
+  if grep -E "(Let's dive in|In this section|It's worth noting|As we can see)" "$note"; then
+    echo "⚠️  $note: Contains AI generation markers"
+    VALIDATION_FAILED=1
+  fi
+done
+
+if [ $VALIDATION_FAILED -eq 1 ]; then
+  echo ""
+  echo "⚠️  Some notes failed validation. Fix these issues before proceeding."
+  exit 1
+fi
+
+echo "✅ All notes passed quality validation"
+```
+
+### Step 2: Generate notes-manifest.json
+
+Create the manifest that tells Phase 3 which notes to convert:
+
+```bash
+# Read course info from course-spec.json
+COURSE_TITLE=$(jq -r '.courseTitle // "Untitled Course"' .learning/state/course-spec.json)
+CONTENT_LANG=$(jq -r '.contentLanguage // "English"' .learning/state/course-spec.json)
+
+# Count total notes
+TOTAL_NOTES=$(find docs -name "*.md" | wc -l | tr -d ' ')
+
+# Generate manifest
+cat > .learning/state/notes-manifest.json <<EOF
+{
+  "version": "1.0",
+  "generatedAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "courseTitle": "$COURSE_TITLE",
+  "contentLanguage": "$CONTENT_LANG",
+  "totalNotes": $TOTAL_NOTES,
+  "modules": [
+EOF
+
+# Scan docs directory to build module structure
+FIRST_MODULE=true
+for module_dir in docs/*/; do
+  MODULE_ID=$(basename "$module_dir")
+  MODULE_TITLE=$(grep "^# " "$module_dir"/*.md | head -1 | sed 's/^# //' || echo "$MODULE_ID")
+
+  if [ "$FIRST_MODULE" = false ]; then
+    echo "," >> .learning/state/notes-manifest.json
+  fi
+  FIRST_MODULE=false
+
+  cat >> .learning/state/notes-manifest.json <<MODULE
+    {
+      "id": "$MODULE_ID",
+      "title": "$MODULE_TITLE",
+      "parts": [
+MODULE
+
+  FIRST_PART=true
+  for note_file in "$module_dir"/*.md; do
+    PART_ID=$(basename "$note_file" .md)
+    PART_TITLE=$(grep "^# " "$note_file" | head -1 | sed 's/^# //' || echo "$PART_ID")
+
+    if [ "$FIRST_PART" = false ]; then
+      echo "," >> .learning/state/notes-manifest.json
+    fi
+    FIRST_PART=false
+
+    cat >> .learning/state/notes-manifest.json <<PART
+        {
+          "id": "$PART_ID",
+          "title": "$PART_TITLE",
+          "file": "$(realpath --relative-to=. "$note_file")",
+          "validated": true
+        }
+PART
+  done
+
+  echo -e "\n      ]" >> .learning/state/notes-manifest.json
+  echo "    }" >> .learning/state/notes-manifest.json
+done
+
+# Close modules array and add quality checks summary
+cat >> .learning/state/notes-manifest.json <<EOF
+  ],
+  "qualityChecks": {
+    "allHaveTLDR": true,
+    "allHaveMindMap": true,
+    "allHaveTerminology": true,
+    "allHaveSelfTest": true,
+    "allHavePractice": true,
+    "noAIMarkers": true
+  }
+}
+EOF
+
+echo "✅ Generated .learning/state/notes-manifest.json"
+cat .learning/state/notes-manifest.json | jq '.'
+```
+
+### Step 3: Update PROGRESS.md
+
+```bash
+# Mark Phase 2 as completed in PROGRESS.md
+sed -i '' 's/course-to-notes | .*/course-to-notes | ✅ completed | All notes validated | notes-manifest.json/' .learning/PROGRESS.md
+
+echo "✅ Updated PROGRESS.md"
+```
+
+### Step 4: Hand Off to Orchestrator
+
+This phase is now complete. Return control to the main orchestrator, which will:
+1. Detect `notes-manifest.json` exists
+2. Route to Phase 3 (notes-to-web) to begin building the interactive website
+
+**Do NOT directly invoke Phase 3.** The orchestrator handles all phase routing.
