@@ -15,10 +15,58 @@ Transform raw course content into value-added learning notes in markdown, with h
 - The main orchestrator routes here as Phase 2
 - `.learning/course-spec.json` exists
 
-## Prerequisites
+## INPUT Requirements (State Files from Phase 1)
 
-- `.learning/course-spec.json` MUST exist (from Phase 1)
-- Read it before every note to orient content
+This phase requires `.learning/state/course-spec.json` from Phase 1.
+
+**Verify before proceeding:**
+
+```bash
+if [ ! -f .learning/state/course-spec.json ]; then
+  echo "❌ ERROR: course-spec.json missing"
+  echo "Phase 2 requires the course specification from Phase 1."
+  echo ""
+  echo "Please run Phase 1 (course-analyze) first, or if using Quick Mode,"
+  echo "ensure the orchestrator generated a minimal course-spec.json."
+  exit 1
+fi
+
+echo "✅ course-spec.json found"
+```
+
+**Read before every note** to orient content by audience, perspective, tone, and goals.
+
+---
+
+## Language Handling (CRITICAL)
+
+Before generating any notes, read the language setting from course-spec.json:
+
+```bash
+CONTENT_LANG=$(jq -r '.contentLanguage // "English"' .learning/state/course-spec.json)
+echo "Content language: $CONTENT_LANG"
+```
+
+**Apply language setting to ALL generated content:**
+
+| Language Setting | How to Apply |
+|-----------------|--------------|
+| **English** | Generate all content (TL;DR, headings, terminology, self-test, practice tasks) in English |
+| **中文 (Chinese)** | Generate all content in simplified Chinese. Use Chinese terminology with English in parentheses where helpful. |
+| **Bilingual** | Primary language in Chinese, key terms in both Chinese and English. Example: "产品经理 (Product Manager)" |
+| **Auto-detect** | Match the language of source materials. If mixed, use the dominant language. |
+
+**Important formatting for bilingual content:**
+```markdown
+## 术语表 (Terminology)
+| 中文术语 | English Term | 定义 (Definition) | 示例 (Example) |
+|---------|--------------|------------------|----------------|
+| 产品经理 | Product Manager | 负责产品战略... | ... |
+```
+
+**UI text and structure elements** (headings like "TL;DR", "Self-Test", "Practice Tasks"):
+- If language is Chinese or Bilingual: Use Chinese headings (e.g., "核心要点" instead of "TL;DR")
+- If language is English: Use English headings
 
 ---
 
@@ -193,6 +241,233 @@ Detailed content...
 
 ---
 
+## Automated Pre-Save Quality Validation
+
+**CRITICAL: Before writing any note file, run these automated checks. If ANY check fails, DO NOT save the file. Regenerate with fixes.**
+
+```bash
+# Function to validate a generated note
+validate_note() {
+  local NOTE_FILE="$1"
+  local CONTENT=$(cat "$NOTE_FILE")
+  local ERRORS=0
+
+  echo "🔍 Validating note quality: $(basename $NOTE_FILE)"
+  echo ""
+
+  # Check 1: TL;DR Section Exists
+  if ! echo "$CONTENT" | grep -q "^## TL;DR"; then
+    echo "❌ FAIL: No TL;DR section found"
+    ((ERRORS++))
+  else
+    TLDR_BULLETS=$(echo "$CONTENT" | sed -n '/^## TL;DR/,/^##/p' | grep -c "^- ")
+    if [ "$TLDR_BULLETS" -lt 3 ] || [ "$TLDR_BULLETS" -gt 5 ]; then
+      echo "❌ FAIL: TL;DR has $TLDR_BULLETS bullets (need 3-5)"
+      ((ERRORS++))
+    else
+      echo "✅ PASS: TL;DR section with $TLDR_BULLETS bullets"
+    fi
+  fi
+
+  # Check 2: Mind Map Exists
+  if ! echo "$CONTENT" | grep -q "^## Mind Map"; then
+    echo "❌ FAIL: No Mind Map section found"
+    ((ERRORS++))
+  else
+    if ! echo "$CONTENT" | sed -n '/^## Mind Map/,/^##/p' | grep -q '```mermaid'; then
+      echo "❌ FAIL: Mind Map section exists but no mermaid diagram"
+      ((ERRORS++))
+    else
+      echo "✅ PASS: Mind Map with mermaid diagram"
+    fi
+  fi
+
+  # Check 3: At Least 2 Mermaid Diagrams Total
+  MERMAID_COUNT=$(echo "$CONTENT" | grep -c '```mermaid')
+  if [ "$MERMAID_COUNT" -lt 2 ]; then
+    echo "❌ FAIL: Only $MERMAID_COUNT mermaid diagrams (need at least 2)"
+    ((ERRORS++))
+  else
+    echo "✅ PASS: $MERMAID_COUNT mermaid diagrams"
+  fi
+
+  # Check 4: Terminology Table
+  if ! echo "$CONTENT" | grep -q "^## Terminology"; then
+    echo "❌ FAIL: No Terminology section found"
+    ((ERRORS++))
+  else
+    # Count table rows (exclude header and separator)
+    TERM_COUNT=$(echo "$CONTENT" | sed -n '/^## Terminology/,/^##/p' | grep "^|" | grep -v "^| Term " | grep -v "^|---" | wc -l)
+    if [ "$TERM_COUNT" -lt 5 ]; then
+      echo "❌ FAIL: Only $TERM_COUNT terms in table (need at least 5)"
+      ((ERRORS++))
+    else
+      echo "✅ PASS: $TERM_COUNT terms in terminology table"
+    fi
+  fi
+
+  # Check 5: Self-Test Questions
+  if ! echo "$CONTENT" | grep -q "^## Self-Test"; then
+    echo "❌ FAIL: No Self-Test section found"
+    ((ERRORS++))
+  else
+    QUESTION_COUNT=$(echo "$CONTENT" | sed -n '/^## Self-Test/,/^##/p' | grep -c "^[0-9]\.")
+    if [ "$QUESTION_COUNT" -lt 3 ]; then
+      echo "❌ FAIL: Only $QUESTION_COUNT questions (need at least 3)"
+      ((ERRORS++))
+    else
+      echo "✅ PASS: $QUESTION_COUNT self-test questions"
+    fi
+  fi
+
+  # Check 6: Practice Tasks
+  if ! echo "$CONTENT" | grep -q "^## Practice"; then
+    echo "❌ FAIL: No Practice section found"
+    ((ERRORS++))
+  else
+    TASK_COUNT=$(echo "$CONTENT" | sed -n '/^## Practice/,/^##/p' | grep -c "^- \[ \]")
+    if [ "$TASK_COUNT" -lt 3 ]; then
+      echo "❌ FAIL: Only $TASK_COUNT practice tasks (need at least 3)"
+      ((ERRORS++))
+    else
+      echo "✅ PASS: $TASK_COUNT practice tasks"
+    fi
+  fi
+
+  # Check 7: "Next Up" Section
+  if ! echo "$CONTENT" | grep -qi "^## Next"; then
+    echo "❌ FAIL: No 'Next Up' or 'Next' section found"
+    ((ERRORS++))
+  else
+    echo "✅ PASS: Next section preview found"
+  fi
+
+  # Check 8: Anti-AI-Slop Patterns
+  echo ""
+  echo "🤖 Checking for AI generation artifacts..."
+
+  AI_SLOP_PATTERNS=(
+    "Let's dive in"
+    "It's worth noting"
+    "In this section"
+    "As we can see"
+    "It is important to note"
+    "There are many ways"
+    "In today's world"
+    "In conclusion"
+  )
+
+  for pattern in "${AI_SLOP_PATTERNS[@]}"; do
+    if echo "$CONTENT" | grep -qi "$pattern"; then
+      echo "⚠️  WARNING: Found AI-slop phrase: '$pattern'"
+      ((ERRORS++))
+    fi
+  done
+
+  # Check for decorative emojis in body text (not in callouts)
+  BODY_EMOJI_COUNT=$(echo "$CONTENT" | grep -v "^>" | grep -oE '[\x{1F300}-\x{1F9FF}]' | wc -l)
+  if [ "$BODY_EMOJI_COUNT" -gt 0 ]; then
+    echo "⚠️  WARNING: Found $BODY_EMOJI_COUNT decorative emojis in body text (only use in callouts)"
+    ((ERRORS++))
+  fi
+
+  # Check 9: Tone Verification (if course-spec.json exists)
+  if [ -f .learning/state/course-spec.json ]; then
+    TONE=$(jq -r '.tone // "conversational"' .learning/state/course-spec.json)
+
+    case "$TONE" in
+      "formal")
+        if echo "$CONTENT" | grep -qE "(don't|won't|can't|it's)"; then
+          echo "⚠️  WARNING: Formal tone specified but contractions found"
+        else
+          echo "✅ PASS: No contractions (formal tone)"
+        fi
+        ;;
+      "technical")
+        # Should have precise terminology, not vague phrases
+        if echo "$CONTENT" | grep -qiE "(somehow|basically|simply|just)"; then
+          echo "⚠️  WARNING: Technical tone specified but vague language found"
+        else
+          echo "✅ PASS: Precise technical language"
+        fi
+        ;;
+      "conversational")
+        echo "✅ PASS: Conversational tone (flexible)"
+        ;;
+    esac
+  fi
+
+  # Check 10: Language Consistency
+  if [ -f .learning/state/course-spec.json ]; then
+    CONTENT_LANG=$(jq -r '.contentLanguage // "English"' .learning/state/course-spec.json)
+
+    case "$CONTENT_LANG" in
+      "English")
+        # Should be primarily English
+        if echo "$CONTENT" | grep -qP '[\p{Han}]{10,}'; then
+          echo "⚠️  WARNING: English language specified but found Chinese paragraphs"
+        else
+          echo "✅ PASS: Content in English"
+        fi
+        ;;
+      "中文")
+        # Should be primarily Chinese
+        if ! echo "$CONTENT" | grep -qP '[\p{Han}]{10,}'; then
+          echo "⚠️  WARNING: Chinese language specified but no Chinese paragraphs found"
+        else
+          echo "✅ PASS: Content in Chinese"
+        fi
+        ;;
+      "Bilingual")
+        # Should have both
+        HAS_ENGLISH=$(echo "$CONTENT" | grep -qE '[a-zA-Z]{20,}' && echo "yes" || echo "no")
+        HAS_CHINESE=$(echo "$CONTENT" | grep -qP '[\p{Han}]{10,}' && echo "yes" || echo "no")
+
+        if [ "$HAS_ENGLISH" = "yes" ] && [ "$HAS_CHINESE" = "yes" ]; then
+          echo "✅ PASS: Content includes both English and Chinese"
+        else
+          echo "⚠️  WARNING: Bilingual specified but missing one language"
+        fi
+        ;;
+    esac
+  fi
+
+  echo ""
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+  if [ $ERRORS -eq 0 ]; then
+    echo "✅ VALIDATION PASSED: All quality checks passed!"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    return 0
+  else
+    echo "❌ VALIDATION FAILED: $ERRORS issues found"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "DO NOT SAVE THIS NOTE. Regenerate with fixes and validate again."
+    return 1
+  fi
+}
+
+# Usage: After generating note content, before writing to file
+# validate_note "/tmp/generated-note.md"
+# if [ $? -eq 0 ]; then
+#   mv /tmp/generated-note.md docs/course-id/module-id/part.md
+# else
+#   echo "Regenerating note with quality improvements..."
+# fi
+```
+
+**Validation Workflow:**
+
+1. Generate note content (with all required sections)
+2. Write to temporary file: `/tmp/note-draft-${PART_ID}.md`
+3. Run `validate_note /tmp/note-draft-${PART_ID}.md`
+4. If validation passes: Move to final location `docs/`
+5. If validation fails: Regenerate with specific fixes, validate again
+6. Maximum 2 regeneration attempts before asking user for guidance
+
+---
+
 ## Output
 
 Notes are saved to `docs/` directory:
@@ -254,11 +529,141 @@ If `.learning/tasks/course-to-notes.task.md` exists:
 
 ---
 
-## Phase Transition
+## OUTPUT: Generate Notes Manifest (State File for Phase 3)
 
-When all notes are complete:
-1. Verify all notes pass the quality checklist
-2. Run a quick structural validation: every note has TL;DR, terminology table, self-test
-3. Flag any notes that failed validation
-4. Update PROGRESS.md: `course-to-notes → ✅ completed`
-5. Ask user: "All notes complete. Ready to build the interactive website? (Phase 3: notes-to-web)"
+When all notes are complete and validated, create the state file for Phase 3:
+
+### Step 1: Validate All Notes
+
+Run quality checks on all generated notes:
+
+```bash
+echo "Running quality validation..."
+
+VALIDATION_FAILED=0
+
+for note in docs/**/*.md; do
+  # Check for required sections
+  if ! grep -q "^## TL;DR" "$note" || \
+     ! grep -q "^## .*Terminology" "$note" || \
+     ! grep -q "^## .*Self.*Test" "$note" || \
+     ! grep -q "^## .*Practice" "$note"; then
+    echo "❌ $note: Missing required sections"
+    VALIDATION_FAILED=1
+  fi
+
+  # Check for AI markers
+  if grep -E "(Let's dive in|In this section|It's worth noting|As we can see)" "$note"; then
+    echo "⚠️  $note: Contains AI generation markers"
+    VALIDATION_FAILED=1
+  fi
+done
+
+if [ $VALIDATION_FAILED -eq 1 ]; then
+  echo ""
+  echo "⚠️  Some notes failed validation. Fix these issues before proceeding."
+  exit 1
+fi
+
+echo "✅ All notes passed quality validation"
+```
+
+### Step 2: Generate notes-manifest.json
+
+Create the manifest that tells Phase 3 which notes to convert:
+
+```bash
+# Read course info from course-spec.json
+COURSE_TITLE=$(jq -r '.courseTitle // "Untitled Course"' .learning/state/course-spec.json)
+CONTENT_LANG=$(jq -r '.contentLanguage // "English"' .learning/state/course-spec.json)
+
+# Count total notes
+TOTAL_NOTES=$(find docs -name "*.md" | wc -l | tr -d ' ')
+
+# Generate manifest
+cat > .learning/state/notes-manifest.json <<EOF
+{
+  "version": "1.0",
+  "generatedAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "courseTitle": "$COURSE_TITLE",
+  "contentLanguage": "$CONTENT_LANG",
+  "totalNotes": $TOTAL_NOTES,
+  "modules": [
+EOF
+
+# Scan docs directory to build module structure
+FIRST_MODULE=true
+for module_dir in docs/*/; do
+  MODULE_ID=$(basename "$module_dir")
+  MODULE_TITLE=$(grep "^# " "$module_dir"/*.md | head -1 | sed 's/^# //' || echo "$MODULE_ID")
+
+  if [ "$FIRST_MODULE" = false ]; then
+    echo "," >> .learning/state/notes-manifest.json
+  fi
+  FIRST_MODULE=false
+
+  cat >> .learning/state/notes-manifest.json <<MODULE
+    {
+      "id": "$MODULE_ID",
+      "title": "$MODULE_TITLE",
+      "parts": [
+MODULE
+
+  FIRST_PART=true
+  for note_file in "$module_dir"/*.md; do
+    PART_ID=$(basename "$note_file" .md)
+    PART_TITLE=$(grep "^# " "$note_file" | head -1 | sed 's/^# //' || echo "$PART_ID")
+
+    if [ "$FIRST_PART" = false ]; then
+      echo "," >> .learning/state/notes-manifest.json
+    fi
+    FIRST_PART=false
+
+    cat >> .learning/state/notes-manifest.json <<PART
+        {
+          "id": "$PART_ID",
+          "title": "$PART_TITLE",
+          "file": "$(realpath --relative-to=. "$note_file")",
+          "validated": true
+        }
+PART
+  done
+
+  echo -e "\n      ]" >> .learning/state/notes-manifest.json
+  echo "    }" >> .learning/state/notes-manifest.json
+done
+
+# Close modules array and add quality checks summary
+cat >> .learning/state/notes-manifest.json <<EOF
+  ],
+  "qualityChecks": {
+    "allHaveTLDR": true,
+    "allHaveMindMap": true,
+    "allHaveTerminology": true,
+    "allHaveSelfTest": true,
+    "allHavePractice": true,
+    "noAIMarkers": true
+  }
+}
+EOF
+
+echo "✅ Generated .learning/state/notes-manifest.json"
+cat .learning/state/notes-manifest.json | jq '.'
+```
+
+### Step 3: Update PROGRESS.md
+
+```bash
+# Mark Phase 2 as completed in PROGRESS.md
+sed -i '' 's/course-to-notes | .*/course-to-notes | ✅ completed | All notes validated | notes-manifest.json/' .learning/PROGRESS.md
+
+echo "✅ Updated PROGRESS.md"
+```
+
+### Step 4: Hand Off to Orchestrator
+
+This phase is now complete. Return control to the main orchestrator, which will:
+1. Detect `notes-manifest.json` exists
+2. Route to Phase 3 (notes-to-web) to begin building the interactive website
+
+**Do NOT directly invoke Phase 3.** The orchestrator handles all phase routing.
