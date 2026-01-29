@@ -60,6 +60,48 @@ If the user has Figma designs to implement.
 
 ---
 
+## INPUT Requirements (State Files from Previous Phases)
+
+This phase requires state files from Phase 1 and Phase 2.
+
+**Verify before proceeding:**
+
+```bash
+# Check for required state files
+for file in course-spec.json notes-manifest.json; do
+  if [ ! -f .learning/state/$file ]; then
+    echo "❌ ERROR: Missing required file .learning/state/$file"
+    echo ""
+    if [ "$file" = "course-spec.json" ]; then
+      echo "Phase 3 requires course specification from Phase 1."
+      echo "Run Phase 1 (course-analyze) first, or use Quick Mode to generate it."
+    elif [ "$file" = "notes-manifest.json" ]; then
+      echo "Phase 3 requires notes manifest from Phase 2."
+      echo "Run Phase 2 (course-to-notes) first, or use Quick Mode to generate it."
+    fi
+    exit 1
+  fi
+done
+
+echo "✅ All required state files found"
+
+# Read key settings
+CONTENT_LANG=$(jq -r '.contentLanguage // "English"' .learning/state/course-spec.json)
+COURSE_TITLE=$(jq -r '.courseTitle // "Untitled Course"' .learning/state/course-spec.json)
+TOTAL_MODULES=$(jq '.modules | length' .learning/state/notes-manifest.json)
+
+echo "Content Language: $CONTENT_LANG"
+echo "Course: $COURSE_TITLE"
+echo "Modules to build: $TOTAL_MODULES"
+```
+
+**What this phase reads:**
+- `.learning/state/course-spec.json` — Course metadata, language setting, audience, tone
+- `.learning/state/notes-manifest.json` — List of all notes to convert, module structure
+- `docs/**/*.md` — The actual markdown note files to transform
+
+---
+
 ## Design Thinking: Anti-AI-Slop Protocol
 
 Before writing ANY code, commit to a **BOLD aesthetic direction**. AI coding agents converge on "AI slop" — this skill exists to prevent that.
@@ -175,6 +217,104 @@ For every page, identify at least 3 opportunities for Magic UI components:
 | Content reveal | `box-reveal` | Sections revealed with animated box wipe |
 
 **CRITICAL:** Query the Magic UI MCP before using any component to get correct, current implementation code.
+
+---
+
+## Intelligent Component Selection Algorithm
+
+**Core Principle:** For EVERY section in a note, reason about which presentation format best serves learning. Do NOT default to plain markdown rendering.
+
+### Step 1: Classify Content Type
+
+Parse each markdown section (H2, H3) and classify its content type:
+
+| Content Pattern | Classification | Component Candidates |
+|----------------|---------------|---------------------|
+| **2+ items with attributes** | Comparison | `SideBySide`, `ComparisonTable`, `TabbedComparison` |
+| **Sequential steps (1→2→3)** | Process/Workflow | `Timeline`, `Stepper`, `AnimatedFlow`, `StepWizard` |
+| **Term + definition list** | Definitions | `FlashcardDeck`, `AccordionGlossary`, `TerminologyDeck` |
+| **Numbers, statistics** | Metrics | `NumberTicker`, `ProgressRings`, `AnimatedCounter`, `HeatMap` |
+| **Code blocks** | Code | `SyntaxHighlighted` + Copy button, `CodePlayground` |
+| **Multiple examples/cases** | Examples | `TabbedExamples`, `CardGrid`, `BentoGrid` |
+| **Relationships/hierarchy** | Connections | `MermaidDiagram` (zoom/pan), `MindMapTree` |
+| **Questions with answers** | Quiz/Assessment | `QuizEngine` with animated feedback |
+| **Time-based data** | Timeline | `Timeline` with animated progress line |
+| **Pros vs Cons** | Trade-off | `BeforeAfter` toggle, `SideBySide` with color coding |
+| **Dense reference info** | Reference | `Accordion` for expand/collapse, `Tabs` for categories |
+
+### Step 2: Apply Engagement Heuristics
+
+For each classified section, enhance with engagement logic:
+
+**High-value concepts** (marked as important in note or in TL;DR):
+→ Make INTERACTIVE, require user action (click to reveal, hover to highlight, drag to reorder)
+
+**Reference material** (terminology, appendix, detailed specs):
+→ Make COLLAPSIBLE (accordion, tabs) — available but not cluttering main flow
+
+**Practice content** (self-test, exercises, practice tasks):
+→ Make GAMIFIED — points, instant feedback, streak mechanics, confetti on success
+
+**Complex diagrams** (mind maps, flowcharts, architecture):
+→ Add ANIMATED ENTRANCE (blur-fade, stagger), make zoomable/pannable
+
+**Page entry points** (hero, first section):
+→ MAXIMIZE IMPACT — bold typography, Magic UI animations (aurora-text, line-shadow-text)
+
+### Step 3: Present Mapping to User
+
+Before converting each note, show the proposed component mapping:
+
+```
+For [Note Title], I propose this presentation:
+
+📌 TL;DR Section
+   → TLDRCard with 5 key points, icon markers
+
+🔀 "PM vs Engineer" (comparison)
+   → SideBySide component, color-coded columns, toggle view
+
+📊 "Workflow Breakdown" (process)
+   → Timeline with animated progress, expandable steps
+
+📚 Terminology (8 terms)
+   → FlashcardDeck with physics-based flip, swipe navigation
+
+❓ Self-Test (4 questions)
+   → QuizEngine with instant feedback, confetti on correct answers
+
+🎯 Practice Tasks
+   → PracticeChecklist with progress ring
+
+Does this mapping look right? Any sections needing different treatment?
+```
+
+User can approve, modify, or suggest alternatives.
+
+### Step 4: Query MCP for Implementation
+
+For EACH component chosen:
+
+1. **Query shadcn/ui MCP** for correct props and patterns
+2. **Query Magic UI MCP** for animation variants
+3. **Verify compatibility** with Next.js 16 + React 19
+4. **Generate TypeScript component** with proper types
+
+### Step 5: Validate Component Appropriateness
+
+Before finalizing, check:
+
+- ✅ **Serves the content:** Component enhances understanding, not decorative
+- ✅ **Appropriate complexity:** Not over-engineered (accordion for 2 items = too much)
+- ✅ **Performance:** Component doesn't slow page load (use `blur-fade` lazy loading if heavy)
+- ✅ **Accessible:** Keyboard navigable, screen reader compatible
+- ✅ **Cohesive:** Fits design system (colors, fonts, spacing)
+
+**Red flags to avoid:**
+- ❌ Using flashcards for < 3 terms (just use a simple table)
+- ❌ Using interactive flowchart for linear 3-step process (timeline is simpler)
+- ❌ Using quiz engine for 1 question (inline question with reveal is better)
+- ❌ Using accordion for content that should always be visible
 
 ---
 
@@ -449,3 +589,122 @@ If `.learning/tasks/notes-to-web.task.md` exists:
 3. Present status: "Scaffold complete. Converting pages: 5/18 done. Currently on Module 2, Part 1."
 4. Ask: "Continue from where we left off?"
 5. Resume from the next incomplete item
+
+---
+
+## OUTPUT: Generate Build Manifest (State File for Phase 4)
+
+After completing a **chunk** (per the granularity setting), update the build manifest so Phase 4 knows what to audit.
+
+### Granularity Settings
+
+User chooses during first build:
+
+| Granularity | Chunk Definition | When to Audit |
+|------------|------------------|---------------|
+| **per-part** | Each note/page | After every page built (most iterations, highest quality) |
+| **per-module** | Each module | After all parts in a module built (balanced) |
+| **per-course** | Entire site | After all pages built (fastest, lowest quality gate) |
+
+**Recommendation:** Per-part for first-time use, per-module for experienced users.
+
+### Step 1: Initialize build-manifest.json (on first chunk)
+
+```bash
+# On first run of Phase 3, create the manifest
+if [ ! -f .learning/state/build-manifest.json ]; then
+  cat > .learning/state/build-manifest.json <<EOF
+{
+  "version": "1.0",
+  "generatedAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "granularity": "$GRANULARITY",
+  "siteDirectory": "$(realpath web)",
+  "designSystem": "web/design-system/DESIGN.md",
+  "chunksCompleted": 0,
+  "chunks": []
+}
+EOF
+  echo "✅ Created build-manifest.json"
+fi
+```
+
+### Step 2: Update After Each Chunk Built
+
+After building a chunk (part, module, or full site based on granularity):
+
+```bash
+CHUNK_ID="module-1-part-2"  # e.g., module-1-part-2 for per-part granularity
+CHUNK_FILE="web/app/modules/module-1/part-2/page.tsx"
+
+# Add chunk to manifest
+jq --arg id "$CHUNK_ID" \
+   --arg file "$CHUNK_FILE" \
+   --arg status "built" \
+   '.chunks += [{
+     "id": $id,
+     "file": $file,
+     "status": $status,
+     "builtAt": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'"
+   }] | .chunksCompleted += 1 | .lastUpdated = "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'"' \
+   .learning/state/build-manifest.json > tmp.$$.json && \
+   mv tmp.$$.json .learning/state/build-manifest.json
+
+echo "✅ Updated build-manifest.json: $CHUNK_ID marked as built"
+```
+
+### Step 3: Signal Completion to Orchestrator
+
+After updating build-manifest.json, this phase **returns control to the main orchestrator**.
+
+The orchestrator will:
+1. Read `build-manifest.json`
+2. Check if corresponding audit file exists (`.learning/audits/[chunk-id].json`)
+3. If NO audit file → Route to Phase 4 to audit this chunk
+4. If audit file exists with `"status": "FAILED"` → Route to Phase 4 to fix
+5. If audit file exists with `"status": "PASSED"` → Route back to Phase 3 for next chunk
+6. If all chunks have passed audits → Mark pipeline COMPLETED ✅
+
+**Do NOT directly invoke Phase 4.** The orchestrator handles all phase routing based on state files.
+
+### Step 4: Track Component Usage (for Phase 4 audit)
+
+Create a component usage log so Phase 4 can verify appropriate component choices:
+
+```bash
+cat > web/components-used.json <<EOF
+{
+  "chunk": "$CHUNK_ID",
+  "components": [
+    {
+      "section": "TL;DR",
+      "component": "TLDRCard",
+      "rationale": "5 key points need visual hierarchy and icon markers"
+    },
+    {
+      "section": "PM vs Engineer Comparison",
+      "component": "SideBySide",
+      "rationale": "Two-column comparison with color coding for pattern recognition"
+    },
+    {
+      "section": "Terminology (8 terms)",
+      "component": "FlashcardDeck",
+      "rationale": "Active recall through flip animation creates engagement"
+    }
+  ]
+}
+EOF
+```
+
+Phase 4 will read this file to audit whether component selections were appropriate.
+
+---
+
+## Phase Transition
+
+When all chunks in `notes-manifest.json` are built:
+
+1. Verify `build-manifest.json` shows all chunks with `status: "built"`
+2. Update PROGRESS.md: `notes-to-web → ✅ completed`
+3. Return control to orchestrator
+
+The orchestrator will then check if ALL chunks have passed Phase 4 audits. If yes, pipeline is complete. If no, loop back to Phase 4 for remaining audits.
