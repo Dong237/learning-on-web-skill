@@ -461,7 +461,7 @@ graph LR
     style D fill:#93C5FD,stroke:#3B82F6,stroke-width:2px
 ```
 
-#### 真实案例模板 (脱敏版)
+#### 教学案例模板 (脱敏版)
 
 **标题**: 某全国性银行智能客服系统：AI大模型助力降本增效
 
